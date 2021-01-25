@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>体内時計トレーニング</title>
+  <script>
+    let sTime,eTime;            // 開始時間、経過時間
+    let request;                // リクエスト
+    let records = new Array();  // 記録
+
+    const init = () => {
+      // ローカルストレージから記録データの読み込み
+      const loadData = localStorage.getItem("body_clock");
+      if (loadData != null) {
+        // 記録データがあるならJSON形式のデータを解析
+        records = JSON.parse(loadData);
+        // トップ10を表示
+        showTop10(-1);
+      }
+      // ストップボタンの無効化
+      document.getElementById("stop").disabled = true;
+    }
+
+    const startTimer = () => {
+      // スタート
+      sTime = Date.now();
+      // 目標時間を取得
+      const hms = document.getElementById("target").value;
+      if ((hms != "") && (hms != "00:00")) {
+        document.getElementById("message").innerText = "計算中...";
+        update();
+        // 目標時間、スタートボタンの無効化、ストップボタンの有効化
+        document.getElementById("target").disabled = true;
+        document.getElementById("start").disabled = true;
+        document.getElementById("stop").disabled = false;
+      }
+    }
+
+    const stopTimer = () => {
+      // ストップ
+      sTime = Date.now();
+      document.getElementById("message").innerText += "終了";
+      window.cancelAnimationFrame(request);
+      // 目標時間、スタートボタンの有効化、ストップボタンの無効化
+      document.getElementById("target").disabled = false;
+      document.getElementById("start").disabled = false;
+      document.getElementById("stop").disabled = true;
+      // 経過時間を表示（不透明に）
+      document.getElementById("time").style.opacity = 1;
+      // 誤差を表示
+      let hms = document.getElementById("target").value;
+      const h = Number(hms.split(":")[0]);
+      const m = Number(hms.split(":")[1]);
+      let s = Number(hms.split(":")[2]);
+      if (isNaN(s)) {
+        hms += ":00";
+        s = 0;
+      }
+      const target = (h * 3600 + m * 60 + s) * 1000;
+      const dTime = Math.abs(eTime - target) / 1000;
+      document.getElementById("dTime").innerText = dTime.toFixed(3);
+      // 記録に追加（11位以降は切り捨て）
+      records.push({"time":dTime,"target":hms,"date":Date.now()});
+      records.sort((a,b) => {return a.time - b.time;});
+      records.splice(10);
+      showTop10(dTime);
+      // ローカルストレージに保存
+      localStorage.setItem("bosy_clock", JSON.stringify(records));
+    }
+
+    const update = () => {
+      //経過時間の表示
+      eTime = Date.now() - sTime;
+      document.getElementById("time").innerText = convertHMS(eTime);
+      // 3秒後から1秒間で透明に
+      let opacity = 1 - (eTime - 3000)/1000;
+      if (opacity < 0) opacity = 0;
+      if (opacity > 1) opacity = 1;
+      document.getElementById("time").style.opacity = opacity;
+      // 更新
+      request = window.requestAnimationFrame(update);
+    }
+
+    const convertHMS = ms => {
+      // 「hh:mm:ss.sss」に変換
+      const sec = Math.floor(ms / 1000);
+      const h = Math.floor(sec / 3600);
+      const m = Math.floor((sec - h * 3600) / 60);
+      const s = Math.floor(sec - h * 3600 - m * 60);
+      const hh = ("00" + h).slice(-2);
+      const mm = ("00" + m).slice(-2);
+      const ss = ("00" + s).slice(-2);
+      const sss = ("000" + (ms - sec * 1000)).slice(-3);
+      return `${hh}:${mm}:${ss}.${sss}`;
+    }
+
+    const showTop10 = dTime => {
+      // TOP10を表示
+      document.getElementById("top10").innerHTML = "";
+      for (let i = -1; i < records.length; i++) {
+        const tr = document.createElement("tr");
+        if (i < 0) {
+          tr.className = "header";
+        } else if (dTime == records[i].time) {
+          tr.className = "select";
+        }
+        // 順位
+        const pos =document.createElement("td");
+        pos.className = "center";
+        if (i < 0) {
+          pos.innerText = "順位";
+        } else {
+          pos.innerText = i + 1;
+        }
+        tr.appendChild(pos);
+        // 誤差
+        const time = document.createElement("td");
+        if (i < 0) {
+          time.innerText = "誤差";
+          time.className = "center";
+        } else {
+          time.innerText = records[i].time.toFixed(3);
+          time.className = "right";
+        }
+        tr.appendChild(time);
+        // 目標時間
+        const target = document.createElement("td");
+        target.className = "center";
+        if (i < 0) {
+          target.innerText = "目標時間";
+        } else {
+          target.innerText = records[i].target;
+        }
+        tr.appendChild(target);
+        // 更新日
+        const date = document.createElement("td");
+        date.className = "center";
+        if (i < 0) {
+          date.innerText = "更新日";
+        } else {
+          const d = new Date(records[i].date);
+          const yyyy = d.getFullYear();
+          const mm = ("00" + (d.getMonth() + 1)).slice(-2);
+          const dd = ("00" + d.getDate()).slice(-2);
+          const h = ("00" + d.getHours()).slice(-2);
+          const m = ("00" + d.getMinutes()).slice(-2);
+          const s = ("00" + d.getSeconds()).slice(-2);
+          date.innerText = `${yyyy}/${mm}/${dd} ${h}:${m}:${s}`;
+        }
+        tr.appendChild(date);
+        document.getElementById("top10").appendChild(tr);
+      }
+    }
+  </script>
+  <style>
+    #time {
+      font: bold 60px sans-serif;
+      color: #0000CC;
+    }
+    span {clear: #CC0000;}
+    table {border-collapse: collapse;}
+    td {
+      padding: 5px;
+      border: thin solid #000000;
+    }
+    .center {text-align: center;}
+    .rigth {text-align: right;}
+    .header {background-color: #CCCCCC;}
+    .select {background-color: #CCFFCC;}
+  </style>
+</head>
+<body onload="init()">
+<p>体内時計トレーニング</p>
+目標時間：<input type="time" id="target" value="00:00:30" step="5">
+<input type="button" id="start" value="スタート" onclick="startTimer()">
+<input type="button" id="stop"  value="ストップ" onclick="stopTimer()">
+<span id="message"></span>
+<hr>
+<div id="time">00:00:00.000</div>
+誤差：<span id="dTime">---</span>秒
+<table id="top10"></table>
+</body>
+</html>
